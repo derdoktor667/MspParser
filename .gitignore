@@ -1,0 +1,43 @@
+*.bin
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Local development certificates
+cert.pem
+key.pem
+
+# Visual Studio Code
+/VS/
+/.vs/
+/__vm/
+/Release/
+/.vscode/
+*.sln
+*.*.filters
+*.user
+*.vcxproj
+GEMINI.md
+/.vscode
+MspParser.code-workspace
