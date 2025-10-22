@@ -54,7 +54,7 @@ public:
   // Pointer to the payload data.
   // The size of the payload in bytes.
   // If true, sends an MSPv2 message; otherwise, sends an MSPv1 message.
-  void sendMspMessage(Stream& stream, uint16_t command, const uint8_t* payload, uint16_t payloadSize, bool useMspV2 = false);
+  void sendMspMessage(Stream& stream, char direction, uint16_t command, const uint8_t* payload, uint16_t payloadSize, bool useMspV2 = false);
 
   // Returns a reference to the internal MspDecoder instance.
   // This allows users to directly access MspDecoder's formatting utilities.
@@ -104,9 +104,9 @@ private:
   void processIncomingByte(uint8_t incomingByte, Parser& parser);
 
   // Private helper to send an MSPv1 message.
-  void sendMspV1Message(Stream& stream, uint8_t command, const uint8_t* payload, uint8_t payloadSize);
+  void sendMspV1Message(Stream& stream, char direction, uint8_t command, const uint8_t* payload, uint8_t payloadSize);
   // Private helper to send an MSPv2 message.
-  void sendMspV2Message(Stream& stream, uint16_t command, const uint8_t* payload, uint16_t payloadSize);
+  void sendMspV2Message(Stream& stream, char direction, uint16_t command, const uint8_t* payload, uint16_t payloadSize);
 };
 
 #endif // MSP_PARSER_H

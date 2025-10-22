@@ -125,14 +125,14 @@ void loop() {
     // Example 1: Send MSPv1 MSP_STATUS (command 101, no payload)
     Serial.println(F("Sending MSPv1 MSP_STATUS..."));
     uint8_t mspStatusPayload[] = {}; // Empty payload
-    mspParser.sendMspMessage(Serial, MSP_STATUS, mspStatusPayload, 0, false);
+    mspParser.sendMspMessage(Serial, '<', MSP_STATUS, mspStatusPayload, 0, false);
     Serial.println(F("Sent MSPv1 MSP_STATUS."));
 
     // Example 2: Send MSPv2 MSP_API_VERSION (command 1, no payload)
     // Note: For MSPv2, the command ID is 16-bit.
     Serial.println(F("Sending MSPv2 MSP_API_VERSION..."));
     uint8_t mspApiVersionPayload[] = {}; // Empty payload
-    mspParser.sendMspMessage(Serial, MSP_API_VERSION, mspApiVersionPayload, 0, true);
+    mspParser.sendMspMessage(Serial, '<', MSP_API_VERSION, mspApiVersionPayload, 0, true);
     Serial.println(F("Sent MSPv2 MSP_API_VERSION."));
 
     // Example 3: Send MSPv1 MSP_SET_RAW_RC (command 200, 16 bytes payload for 8 channels)
@@ -141,7 +141,7 @@ void loop() {
     for (int i = 0; i < 16; ++i) {
       rcData[i] = i + 1; // Dummy data
     }
-    mspParser.sendMspMessage(Serial, MSP_SET_RAW_RC, rcData, sizeof(rcData), false);
+    mspParser.sendMspMessage(Serial, '<', MSP_SET_RAW_RC, rcData, sizeof(rcData), false);
     Serial.println(F("Sent MSPv1 MSP_SET_RAW_RC."));
 
     // --- Demonstrate Direct MspDecoder Usage ---

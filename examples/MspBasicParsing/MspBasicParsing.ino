@@ -66,10 +66,8 @@ void loop() {
   static unsigned long lastSendTime = 0;
   if (millis() - lastSendTime > 5000) {
     lastSendTime = millis();
-    Serial.println(F("\n--- Simulating MSP_STATUS message ---"));
-    // MSP_STATUS: command 101 (0x65), no payload, checksum 0x65
-    // $M< + size (0) + command (101) + checksum (101)
-    uint8_t mspStatusMsg[] = {'$', 'M', '<', 0x00, 0x65, 0x65};
-    Serial.write(mspStatusMsg, sizeof(mspStatusMsg));
+    Serial.println(F("\n--- Simulating sending MSP_STATUS message ---"));
+    // MSP_STATUS: command 101 (0x65), no payload
+    mspParser.sendMspMessage(Serial, '<', 101, nullptr, 0, false);
   }
 }

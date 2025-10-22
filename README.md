@@ -12,6 +12,7 @@ It is designed to be non-blocking and uses a callback mechanism, allowing you to
 - **Lightweight:** Minimal memory footprint, especially when optimized for resource-constrained devices like Arduino Uno.
 - **Well-Documented:** Clear and concise API.
 - **Send Messages:** Easily construct and send MSPv1 or MSPv2 messages to a connected device.
+- **Bidirectional Communication Fix:** Corrected a hardcoded direction issue, ensuring proper two-way MSP communication.
 - **Decoded Output:** Provides options to output MSP commands and payloads in hexadecimal, binary, or human-readable (decoded) formats, including known Betaflight commands. *Note: Human-readable decoding is memory-intensive and may not be suitable for Arduino Uno.*
 - **Improved Internal Structure:** Refactored for better readability and maintainability.
 - **Direct Decoder Access:** The `MspDecoder` instance is directly accessible for advanced formatting needs.
@@ -98,11 +99,12 @@ Prints the formatted string representation of an MSP command ID to the specified
 
 Prints the formatted string representation of an MSP message payload to the specified `Stream`, based on the currently set output format.
 
-#### `void sendMspMessage(Stream& stream, uint16_t command, const uint8_t* payload, uint16_t payloadSize, bool useMspV2 = false)`
+#### `void sendMspMessage(Stream& stream, char direction, uint16_t command, const uint8_t* payload, uint16_t payloadSize, bool useMspV2 = false)`
 
 Constructs and sends an MSP message over the specified stream. Internally, this function delegates to specialized helper functions for MSPv1 and MSPv2 message construction.
 
 -   `stream`: The `Stream` object to send the message over.
+-   `direction`: The direction of the message (`'<'` for App to FC, `'>'` for FC to App).
 -   `command`: The MSP command ID.
 -   `payload`: A pointer to the payload data.
 -   `payloadSize`: The size of the payload in bytes.

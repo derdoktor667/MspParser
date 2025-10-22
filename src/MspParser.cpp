@@ -202,12 +202,12 @@ void MspParser::processIncomingByte(uint8_t incomingByte, Parser& parser) {
 // The size of the payload in bytes.
 // If true, sends an MSPv2 message; otherwise, sends an MSPv1 message.
 // Private helper to send an MSPv1 message.
-void MspParser::sendMspV1Message(Stream& stream, uint8_t command, const uint8_t* payload, uint8_t payloadSize) {
+void MspParser::sendMspV1Message(Stream& stream, char direction, uint8_t command, const uint8_t* payload, uint8_t payloadSize) {
     uint8_t checksum = 0;
 
     stream.write('$');
     stream.write('M');
-    stream.write('<'); // Direction: App to FC
+    stream.write(direction);
 
     stream.write(payloadSize);
     checksum ^= payloadSize;
@@ -223,14 +223,14 @@ void MspParser::sendMspV1Message(Stream& stream, uint8_t command, const uint8_t*
 }
 
 // Private helper to send an MSPv2 message.
-void MspParser::sendMspV2Message(Stream& stream, uint16_t command, const uint8_t* payload, uint16_t payloadSize) {
+void MspParser::sendMspV2Message(Stream& stream, char direction, uint16_t command, const uint8_t* payload, uint16_t payloadSize) {
     uint8_t crc = 0;
     uint8_t flags = 0; // For now, flags are 0
 
     stream.write('$');
     stream.write('X');
-    stream.write('<'); // Direction: App to FC
-    crc = crc8_dvb_s2(crc, '<');
+    stream.write(direction);
+    crc = crc8_dvb_s2(crc, direction);
 
     stream.write(flags);
     crc = crc8_dvb_s2(crc, flags);
@@ -258,11 +258,11 @@ void MspParser::sendMspV2Message(Stream& stream, uint16_t command, const uint8_t
 // Pointer to the payload data.
 // The size of the payload in bytes.
 // If true, sends an MSPv2 message; otherwise, sends an MSPv1 message.
-void MspParser::sendMspMessage(Stream& stream, uint16_t command, const uint8_t* payload, uint16_t payloadSize, bool useMspV2) {
+void MspParser::sendMspMessage(Stream& stream, char direction, uint16_t command, const uint8_t* payload, uint16_t payloadSize, bool useMspV2) {
     // Automatically upgrade to MSPv2 if command or payload size is too large for V1
     if (useMspV2 || command > 255 || payloadSize > 255) {
-        sendMspV2Message(stream, command, payload, payloadSize);
+        sendMspV2Message(stream, direction, command, payload, payloadSize);
     } else {
-        sendMspV1Message(stream, (uint8_t)command, payload, (uint8_t)payloadSize);
+        sendMspV1Message(stream, direction, (uint8_t)command, payload, (uint8_t)payloadSize);
     }
 }
