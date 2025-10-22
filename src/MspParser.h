@@ -4,7 +4,8 @@
 #include <Arduino.h>
 #include <Stream.h>
 #include "MspDecoder.h" // Include the MSP decoder class
-#include "crc8.h"
+
+uint8_t crc8_dvb_s2(uint8_t crc, uint8_t a);
 
 // Represents a fully parsed MSP message.
 struct MspMessage {
@@ -28,7 +29,7 @@ public:
 
   // Attaches a Stream object to the parser.
   // The parser will listen for data on this stream. Up to two streams can be attached.
-  void begin(Stream& stream, const char* prefix);
+  void begin(Stream& stream, const char* prefix, void (*debugCallback)(const String& message) = nullptr);
 
   // Sets the callback function to be called when a valid MSP message is parsed.
   void onMessage(MspMessageCallback callback);
@@ -89,6 +90,8 @@ private:
     uint16_t _currentPayloadIndex = 0;
     uint8_t _currentChecksum = 0;
     uint8_t _currentCrc = 0;
+    bool _isMspV2 = false;
+    char _currentDirection;
   };
 
   // Array to hold parser states for up to 2 streams simultaneously.
@@ -96,6 +99,7 @@ private:
   uint8_t _parserCount = 0;
 
   MspMessageCallback _messageCallback = nullptr;
+  void (*_debugCallback)(const String& message) = nullptr;
   MspDecoder _mspDecoder;
   MspOutputFormat _currentOutputFormat = MSP_FORMAT_DECODED;
 

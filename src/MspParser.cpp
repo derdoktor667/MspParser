@@ -1,19 +1,32 @@
 #include "MspParser.h"
 #include "MspDecoder.h"
-#include "crc8.h"
+
+uint8_t crc8_dvb_s2(uint8_t crc, uint8_t a)
+{
+    crc ^= a;
+    for (int i = 0; i < 8; ++i) {
+        if (crc & 0x80) {
+            crc = (crc << 1) ^ 0xD5;
+        } else {
+            crc <<= 1;
+        }
+    }
+    return crc & 0xFF; // Ensure it stays 8-bit
+}
 
 // Constructor for MspParser.
-MspParser::MspParser() {}
+MspParser::MspParser() : _debugCallback(nullptr) {}
 
 // Attaches a Stream object to the parser.
 // The parser will listen for data on this stream. Up to two streams can be attached.
-void MspParser::begin(Stream& stream, const char* prefix) {
+void MspParser::begin(Stream& stream, const char* prefix, void (*debugCallback)(const String& message)) {
   // Only allow attaching up to 2 streams
   if (_parserCount < 2) {
     _parsers[_parserCount]._stream = &stream;
     _parsers[_parserCount]._prefix = prefix;
     _parserCount++;
   }
+  _debugCallback = debugCallback;
 }
 
 // Sets the callback function to be called when a valid MSP message is parsed.
@@ -28,7 +41,8 @@ void MspParser::update() {
   for (uint8_t i = 0; i < _parserCount; ++i) {
     // Process all available bytes in the current stream
     while (_parsers[i]._stream && _parsers[i]._stream->available()) {
-      processIncomingByte(_parsers[i]._stream->read(), _parsers[i]);
+      uint8_t incomingByte = _parsers[i]._stream->read();
+      processIncomingByte(incomingByte, _parsers[i]);
     }
   }
 }
@@ -82,75 +96,94 @@ void MspParser::printFormattedPayload(Stream& stream, uint16_t command, const ui
   }
 }
 
-// Processes a single incoming byte for a given parser.
-// This is the core state machine logic for parsing MSP messages.
 void MspParser::processIncomingByte(uint8_t incomingByte, Parser& parser) {
+  if (_debugCallback) {
+    _debugCallback("DEBUG MspParser: Incoming byte: 0x" + String(incomingByte, HEX) + ", State: " + String(parser._currentState));
+  }
+
   switch (parser._currentState) {
     case IDLE:
-      if (incomingByte == '$') parser._currentState = HEADER_M;
+      if (incomingByte == '$') {
+        parser._currentState = HEADER_M;
+        if (_debugCallback) _debugCallback("DEBUG MspParser: State -> HEADER_M");
+      }
       break;
     case HEADER_M:
       if (incomingByte == 'M') {
         parser._currentState = HEADER_DIRECTION;
+        parser._isMspV2 = false; // Set flag for MSPv1
         parser._currentCrc = 0; // Reset CRC for MSPv1
+        if (_debugCallback) _debugCallback("DEBUG MspParser: State -> HEADER_DIRECTION (MSPv1)");
       } else if (incomingByte == 'X') {
         parser._currentState = HEADER_DIRECTION;
+        parser._isMspV2 = true;  // Set flag for MSPv2
         parser._currentCrc = 0; // Reset CRC for MSPv2
+        if (_debugCallback) _debugCallback("DEBUG MspParser: State -> HEADER_DIRECTION (MSPv2)");
       } else {
         parser._currentState = IDLE; // Invalid header, reset
+        if (_debugCallback) _debugCallback("DEBUG MspParser: State -> IDLE (Invalid header)");
       }
       break;
     case HEADER_DIRECTION:
       // Check for message direction ('>' for FC to App, '<' for App to FC)
       if (incomingByte == '<' || incomingByte == '>') {
+        parser._currentDirection = incomingByte; // Store direction
         parser._currentPayloadSize = 0; // Reset for new message
         parser._currentCommand = 0;
         parser._currentPayloadIndex = 0;
         parser._currentChecksum = 0;
-        parser._currentCrc = crc8_dvb_s2(parser._currentCrc, incomingByte); // Include direction in CRC
-        if (parser._currentState == HEADER_M) { // If it was MSPv1 header
-          parser._currentState = SIZE;
-        } else { // If it was MSPv2 header
+        if (parser._isMspV2) { // Use the new flag
+          parser._currentCrc = crc8_dvb_s2(parser._currentCrc, incomingByte); // Include direction in CRC
           parser._currentState = FLAGS;
+          if (_debugCallback) _debugCallback("DEBUG MspParser: State -> FLAGS (MSPv2)");
+        } else { // If it was MSPv1 header
+          parser._currentState = SIZE;
+          if (_debugCallback) _debugCallback("DEBUG MspParser: State -> SIZE (MSPv1)");
         }
       } else {
         parser._currentState = IDLE; // Invalid header, reset
+        if (_debugCallback) _debugCallback("DEBUG MspParser: State -> IDLE (Invalid direction)");
       }
       break;
     case FLAGS: // MSPv2 specific
-      parser._currentFlags = incomingByte;
       parser._currentCrc = crc8_dvb_s2(parser._currentCrc, incomingByte);
       parser._currentState = SIZE; // Next is payload size low byte
+      if (_debugCallback) _debugCallback("DEBUG MspParser: State -> SIZE (MSPv2 flags received)");
       break;
     case SIZE:
       parser._currentPayloadSize = incomingByte;
       parser._currentChecksum ^= incomingByte; // MSPv1 checksum
-      parser._currentCrc = crc8_dvb_s2(parser._currentCrc, incomingByte); // MSPv2 CRC
-      if (parser._currentState == FLAGS) { // If it was MSPv2 flags
+      if (parser._isMspV2) { // Use the new flag
+        parser._currentCrc = crc8_dvb_s2(parser._currentCrc, incomingByte); // MSPv2 CRC
         parser._currentState = SIZE_HIGH;
-      } else { // If it was MSPv1 header
+        if (_debugCallback) _debugCallback("DEBUG MspParser: State -> SIZE_HIGH (MSPv2 size low received)");
+      } else {
         parser._currentState = COMMAND;
+        if (_debugCallback) _debugCallback("DEBUG MspParser: State -> COMMAND (MSPv1 size received)");
       }
       break;
     case SIZE_HIGH: // MSPv2 specific
-      parser._currentPayloadSize |= (uint16_t)incomingByte << 8;
       parser._currentCrc = crc8_dvb_s2(parser._currentCrc, incomingByte);
       parser._currentState = COMMAND; // Next is command low byte
+      if (_debugCallback) _debugCallback("DEBUG MspParser: State -> COMMAND (MSPv2 size high received)");
       break;
     case COMMAND:
       parser._currentCommand = incomingByte;
       parser._currentChecksum ^= incomingByte; // MSPv1 checksum
-      parser._currentCrc = crc8_dvb_s2(parser._currentCrc, incomingByte); // MSPv2 CRC
-      if (parser._currentState == SIZE_HIGH) { // If it was MSPv2 size high
+      if (parser._isMspV2) {
+        parser._currentCrc = crc8_dvb_s2(parser._currentCrc, incomingByte); // MSPv2 CRC
         parser._currentState = COMMAND_HIGH;
-      } else { // If it was MSPv1 size
+        if (_debugCallback) _debugCallback("DEBUG MspParser: State -> COMMAND_HIGH (MSPv2 command low received)");
+      } else {
         parser._currentState = (parser._currentPayloadSize > 0) ? PAYLOAD : CHECKSUM;
+        if (_debugCallback) _debugCallback("DEBUG MspParser: State -> " + String(parser._currentState == PAYLOAD ? "PAYLOAD" : "CHECKSUM") + " (MSPv1 command received)");
       }
       break;
     case COMMAND_HIGH: // MSPv2 specific
       parser._currentCommand |= (uint16_t)incomingByte << 8;
       parser._currentCrc = crc8_dvb_s2(parser._currentCrc, incomingByte);
       parser._currentState = (parser._currentPayloadSize > 0) ? PAYLOAD : CRC; // Next is payload or CRC
+      if (_debugCallback) _debugCallback("DEBUG MspParser: State -> " + String(parser._currentState == PAYLOAD ? "PAYLOAD" : "CRC") + " (MSPv2 command high received)");
       break;
     case PAYLOAD:
       // Store payload byte if buffer has space
@@ -158,13 +191,17 @@ void MspParser::processIncomingByte(uint8_t incomingByte, Parser& parser) {
         parser._payloadBuffer[parser._currentPayloadIndex++] = incomingByte;
       }
       parser._currentChecksum ^= incomingByte; // MSPv1 checksum
-      parser._currentCrc = crc8_dvb_s2(parser._currentCrc, incomingByte); // MSPv2 CRC
+      if (parser._isMspV2) {
+        parser._currentCrc = crc8_dvb_s2(parser._currentCrc, incomingByte); // MSPv2 CRC
+      }
       // Check if all payload bytes have been received
       if (parser._currentPayloadIndex >= parser._currentPayloadSize) {
-        if (parser._currentState == COMMAND_HIGH || parser._currentState == SIZE_HIGH) { // If it was MSPv2
+        if (parser._isMspV2) { // Use the new flag
           parser._currentState = CRC;
+          if (_debugCallback) _debugCallback("DEBUG MspParser: State -> CRC (MSPv2 payload complete)");
         } else { // If it was MSPv1
           parser._currentState = CHECKSUM;
+          if (_debugCallback) _debugCallback("DEBUG MspParser: State -> CHECKSUM (MSPv1 payload complete)");
         }
       }
       break;
@@ -172,25 +209,33 @@ void MspParser::processIncomingByte(uint8_t incomingByte, Parser& parser) {
       // Validate checksum and trigger callback if valid
       if (incomingByte == parser._currentChecksum && _messageCallback) {
         MspMessage parsedMessage;
-        // Infer direction based on command ID (commands > 199 are typically responses from FC)
-        parsedMessage.direction = (parser._currentCommand > 199) ? '>' : '<';
+        parsedMessage.direction = parser._currentDirection; // Use stored direction
         parsedMessage.command = parser._currentCommand;
         parsedMessage.payloadSize = parser._currentPayloadSize;
         parsedMessage.payload = parser._payloadBuffer;
         _messageCallback(parsedMessage, parser._prefix);
+        if (_debugCallback) _debugCallback("DEBUG MspParser: MSPv1 message parsed successfully. Command: 0x" + String(parsedMessage.command, HEX));
+      } else {
+        if (_debugCallback) _debugCallback("DEBUG MspParser: MSPv1 checksum mismatch or no callback. Expected: 0x" + String(parser._currentChecksum, HEX) + ", Received: 0x" + String(incomingByte, HEX));
       }
       parser._currentState = IDLE; // Reset for next message
+      if (_debugCallback) _debugCallback("DEBUG MspParser: State -> IDLE");
       break;
     case CRC: // MSPv2 specific
       // Validate CRC and trigger callback if valid
       if (incomingByte == parser._currentCrc && _messageCallback) {
         MspMessage parsedMessage;
-        parsedMessage.direction = (parser._currentFlags & 0x01) ? '>' : '<'; // Direction from flags
+        parsedMessage.direction = parser._currentDirection; // Use stored direction
         parsedMessage.command = parser._currentCommand;
         parsedMessage.payloadSize = parser._currentPayloadSize;
         parsedMessage.payload = parser._payloadBuffer;
         _messageCallback(parsedMessage, parser._prefix);
+        if (_debugCallback) _debugCallback("DEBUG MspParser: MSPv2 message parsed successfully. Command: 0x" + String(parsedMessage.command, HEX));
+      } else {
+        if (_debugCallback) _debugCallback("DEBUG MspParser: MSPv2 CRC mismatch or no callback. Expected: 0x" + String(parser._currentCrc, HEX) + ", Received: 0x" + String(incomingByte, HEX));
       }
+      parser._currentState = IDLE; // Reset for next message
+      if (_debugCallback) _debugCallback("DEBUG MspParser: State -> IDLE");
       break;
   }
 }
