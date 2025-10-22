@@ -259,12 +259,10 @@ void MspParser::sendMspV2Message(Stream& stream, uint16_t command, const uint8_t
 // The size of the payload in bytes.
 // If true, sends an MSPv2 message; otherwise, sends an MSPv1 message.
 void MspParser::sendMspMessage(Stream& stream, uint16_t command, const uint8_t* payload, uint16_t payloadSize, bool useMspV2) {
-    if (useMspV2) {
+    // Automatically upgrade to MSPv2 if command or payload size is too large for V1
+    if (useMspV2 || command > 255 || payloadSize > 255) {
         sendMspV2Message(stream, command, payload, payloadSize);
     } else {
-        // MSPv1 payloadSize and command are 1 byte. Handle potential truncation.
-        uint8_t mspV1PayloadSize = (uint8_t)min((uint16_t)255, payloadSize); // Max 255 for MSPv1
-        uint8_t mspV1Command = (uint8_t)min((uint16_t)255, command);       // Max 255 for MSPv1
-        sendMspV1Message(stream, mspV1Command, payload, mspV1PayloadSize);
+        sendMspV1Message(stream, (uint8_t)command, payload, (uint8_t)payloadSize);
     }
 }
