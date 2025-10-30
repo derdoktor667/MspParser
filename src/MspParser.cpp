@@ -305,9 +305,5 @@ void MspParser::sendMspV2Message(Stream& stream, char direction, uint16_t comman
 // If true, sends an MSPv2 message; otherwise, sends an MSPv1 message.
 void MspParser::sendMspMessage(Stream& stream, char direction, uint16_t command, const uint8_t* payload, uint16_t payloadSize, bool useMspV2) {
     // Automatically upgrade to MSPv2 if command or payload size is too large for V1
-    if (useMspV2 || command > 255 || payloadSize > 255) {
-        sendMspV2Message(stream, direction, command, payload, payloadSize);
-    } else {
-        sendMspV1Message(stream, direction, (uint8_t)command, payload, (uint8_t)payloadSize);
-    }
+    sendMspV2Message(stream, direction, command, payload, payloadSize);
 }
